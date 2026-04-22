@@ -1,27 +1,26 @@
 #include "cmeme.h"
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <curl/curl.h>
 #include <cjson/cJSON.h>
-#include <sys/types.h>
 
 typedef struct {
   char *buffer;
   int length;
 } MEMORY;
 
-void  cleanMeme(CMEME *meme) {
+void cleanMeme(CMEME *meme) {
   free(meme);
-};
+}
 
 size_t curl_callback(char *in_data, size_t in_size, size_t in_count, void *usr) {
 
-  size_t total_bytes = in_count * in_size;
+  size_t total_bytes = in_size * in_count;
   MEMORY *mem = (MEMORY *)usr;
 
   char *temp = realloc(mem->buffer, mem->length + total_bytes + 1);
-  if (temp == NULL) return 1;
+  if (!temp) return 0;
+
   mem->buffer = temp;
 
   memcpy(mem->buffer + mem->length, in_data, total_bytes);
@@ -33,12 +32,8 @@ size_t curl_callback(char *in_data, size_t in_size, size_t in_count, void *usr) 
 
 CMEME *getMeme() {
 
-  // ==========
-  // CURL JOB
-  // ==========
-  
   CURL *curl = curl_easy_init();
-  if (curl == NULL) return NULL;
+  if (!curl) return NULL;
 
   MEMORY mem = {.buffer = NULL, .length = 0};
 
@@ -47,69 +42,66 @@ CMEME *getMeme() {
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_callback);
 
   CURLcode res = curl_easy_perform(curl);
-  if (res != CURLE_OK) {
-    curl_easy_cleanup(curl);
-    return NULL;
-  }
   curl_easy_cleanup(curl);
 
-  // ==========
-  // CJSON JOB
-  // ==========
-  
-  cJSON *json = cJSON_Parse(mem.buffer);
-  if (json == NULL) {
+  if (res != CURLE_OK) {
     free(mem.buffer);
     return NULL;
   }
+
+  cJSON *json = cJSON_Parse(mem.buffer);
   free(mem.buffer);
 
+  if (!json) return NULL;
+
+  // required fields
   cJSON *author = cJSON_GetObjectItem(json, "author");
   cJSON *url = cJSON_GetObjectItem(json, "url");
   cJSON *title = cJSON_GetObjectItem(json, "title");
+  cJSON *subreddit = cJSON_GetObjectItem(json, "subreddit");
+  cJSON *postLink = cJSON_GetObjectItem(json, "postLink");
   cJSON *ups = cJSON_GetObjectItem(json, "ups");
-  cJSON *subreddit = cJSON_GetObjectItem(json,  "subreddit");
 
-  // ==========
-  // MAIN JOB
-  // ==========
+  // optional fields
+  cJSON *nsfw = cJSON_GetObjectItem(json, "nsfw");
+  cJSON *spoiler = cJSON_GetObjectItem(json, "spoiler");
+  cJSON *preview = cJSON_GetObjectItem(json, "preview");
 
-  CMEME *cmeme = calloc(1, sizeof(CMEME));
-  if (cmeme == NULL) {
-    cJSON_Delete(json);
-    return NULL;
-  }
-  
   if (
     !cJSON_IsString(author) ||
     !cJSON_IsString(url) ||
     !cJSON_IsString(title) ||
-    !cJSON_IsNumber(ups) ||
-    !cJSON_IsString(subreddit)
-  ) {cJSON_Delete(json); free(cmeme); return NULL;}
+    !cJSON_IsString(subreddit) ||
+    !cJSON_IsString(postLink) ||
+    !cJSON_IsNumber(ups)
+  ) {
+    cJSON_Delete(json);
+    return NULL;
+  }
 
-  if (
-    !author->valuestring ||
-    !url->valuestring ||
-    !title->valuestring ||
-    !subreddit->valuestring
-  ) {cJSON_Delete(json); free(cmeme); return NULL;}
+  CMEME *cmeme = calloc(1, sizeof(CMEME));
+  if (!cmeme) {
+    cJSON_Delete(json);
+    return NULL;
+  }
 
-  // SETUP STRUCT OF CMEME
-  
   strncpy(cmeme->author, author->valuestring, sizeof(cmeme->author) - 1);
-  cmeme->author[511] = '\0';
-
   strncpy(cmeme->subreddit, subreddit->valuestring, sizeof(cmeme->subreddit) - 1);
-  cmeme->subreddit[511] = '\0';
-
   strncpy(cmeme->title, title->valuestring, sizeof(cmeme->title) - 1);
-  cmeme->title[511] = '\0';
-
   strncpy(cmeme->url, url->valuestring, sizeof(cmeme->url) - 1);
-  cmeme->url[511] = '\0';
+  strncpy(cmeme->postLink, postLink->valuestring, sizeof(cmeme->postLink) - 1);
 
   cmeme->ups = ups->valueint;
+  cmeme->nsfw = nsfw ? nsfw->valueint : 0;
+  cmeme->spoiler = spoiler ? spoiler->valueint : 0;
+
+  // preview: take first image if available
+  if (preview && cJSON_IsArray(preview) && cJSON_GetArraySize(preview) > 0) {
+    cJSON *first = cJSON_GetArrayItem(preview, 0);
+    if (cJSON_IsString(first) && first->valuestring) {
+      strncpy(cmeme->preview, first->valuestring, sizeof(cmeme->preview) - 1);
+    }
+  }
 
   cJSON_Delete(json);
   return cmeme;
