@@ -1,0 +1,11 @@
+obj:
+gcc -fPIC -c src/cmeme.c -o build/obj/cmeme.o
+
+link:
+gcc -shared -o build/libcmeme.so build/obj/cmeme.o -lcurl -lcjson
+
+compile:
+gcc test.c -I src -L build -lcmeme -lcurl -lcjson -o build/test
+
+def:
+LD_LIBRARY_PATH=build ./build/test
