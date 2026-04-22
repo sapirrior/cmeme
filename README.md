@@ -1,4 +1,5 @@
 cmeme
+=====
 
 cmeme is a small C library for fetching meme data from a public API using libcurl and parsing JSON responses with cJSON.
 
@@ -9,55 +10,54 @@ FEATURES
 - Structured meme data output
 - Shared library build support
 
-DATA MODEL
+### DATA MODEL
 
-The library returns a CMEME struct:
+The library returns a CMEME structure:
 
-typedef struct {
-  char subreddit[512];
-  char author[512];
-  char title[512];
-  char url[512];
-  char postLink[512];
+    typedef struct {
+      char subreddit[512];
+      char author[512];
+      char title[512];
+      char url[512];
+      char postLink[512];
 
-  int nsfw;
-  int spoiler;
+      int nsfw;
+      int spoiler;
 
-  int64_t ups;
-} CMEME;
+      int64_t ups;
+    } CMEME;
 
-API
+### API
 
-CMEME *getMeme(void);
+    CMEME *getMeme(void)
 
 Fetches a meme from the API and returns a dynamically allocated CMEME struct.
-
 Returns NULL on failure.
 
-void cleanMeme(CMEME *meme);
+    void cleanMeme(CMEME *meme)
 
-Frees the allocated meme structure.
+Frees memory allocated for the CMEME struct.
 
-BUILD
+### BUILD INSTRUCTIONS
 
-mkdir -p build build/obj
+    mkdir -p build build/obj
 
-gcc -fPIC -c src/cmeme.c -o build/obj/cmeme.o -Isrc
+    gcc -fPIC -c src/cmeme.c -o build/obj/cmeme.o -Isrc
 
-gcc -shared build/obj/cmeme.o -o build/libcmeme.so -lcurl -lcjson
+    gcc -shared build/obj/cmeme.o -o build/libcmeme.so -lcurl -lcjson
 
-gcc test.c -o build/test -Lbuild -lcmeme -lcurl -lcjson -Isrc
+    gcc test.c -o build/test -Lbuild -lcmeme -lcurl -lcjson -Isrc
 
-RUN
+### RUN
 
-LD_LIBRARY_PATH=build ./build/test
+    LD_LIBRARY_PATH=build ./build/test
 
-DEPENDENCIES
+## DEPENDENCIES
 
 - libcurl
 - cJSON
 
-NOTES
+### *NOTES*
 
-- Memory returned by getMeme must be freed using cleanMeme.
+- Memory returned by getMeme() must be freed using cleanMeme.
 - Requires working HTTPS support and valid CA certificates.
